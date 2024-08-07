@@ -189,7 +189,7 @@ def lambda_handler(event, context):
     
     catalog = GlueCatalog(glue_db_name)
     table = catalog.load_table((glue_db_name, glue_table_name))
-    snapshot = table.metadata.snapshot_by_id(table.metadata.current_snapshot_id)
+    snapshot = table.current_snapshot()
     logger.info(f"current snapshot id={snapshot.snapshot_id}")
     logger.info("Using glue IS to produce metrics")
     
