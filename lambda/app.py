@@ -1,4 +1,5 @@
 import boto3
+from numbers import Number
 from datetime import datetime, timezone
 from pyiceberg.catalog.glue import GlueCatalog
 from pyiceberg.table import Table
@@ -49,6 +50,21 @@ def send_custom_metric( metric_name, dimensions, value, unit, namespace, timesta
         MetricData=[metric_data]
     )
        
+def send_metrics(metrics: dict, namespace: str, table: Table, snapshot: Snapshot):
+    for metric_name, metric_value in metrics.items():
+        if not isinstance(metric_value, Number):
+            metric_value = metric_value.item()
+        logger.info(f"metric_name={namespace}.{metric_name}, metric_value={metric_value}")
+        send_custom_metric(
+            metric_name=f"{namespace}.{metric_name}",
+            dimensions=[
+                {'Name': 'table_name', 'Value': f"{table.name()[1]}.{table.name()[2]}"}
+            ],
+            value=metric_value,
+            unit='Bytes' if "size" in metric_name else "Count",
+            namespace=cw_namespace,
+            timestamp = snapshot.timestamp_ms,
+        )
 
 def send_files_metrics(table: Table, snapshot: Snapshot):
     logger.info(f"send_files_metrics() -> snapshot_id={snapshot.snapshot_id}")
@@ -64,22 +80,7 @@ def send_files_metrics(table: Table, snapshot: Snapshot):
     
     logger.info("file_metrics=")
     logger.info(file_metrics)
-    # loop over file_metrics, use key as metric name and value as metric value
-    # loop over partition_metrics, use key as metric name and value as metric value
-    for metric_name, metric_value in file_metrics.items():     
-        logger.info(f"metric_name=files.{metric_name}, metric_value={metric_value.item()}")
-        send_custom_metric(
-            metric_name=f"files.{metric_name}",
-            dimensions=[
-                {'Name': 'table_name', 'Value': f"{table.name()[1]}.{table.name()[2]}"}
-            ],
-            value=metric_value.item(),
-            unit='Bytes' if "size" in metric_name else "Count",
-            namespace=cw_namespace,
-            timestamp = snapshot.timestamp_ms,
-        )
-    
-    return file_metrics
+    send_metrics(file_metrics, "files", table, snapshot)
     
 
 def send_partition_metrics(table: Table, snapshot: Snapshot):
@@ -105,19 +106,7 @@ def send_partition_metrics(table: Table, snapshot: Snapshot):
     logger.info("partition_metrics=")
     logger.info(partition_metrics)
     
-    # loop over aggregated partition_metrics, use key as metric name and value as metric value
-    for metric_name, metric_value in partition_metrics.items():  
-        logger.info(f"metric_name=partitions.{metric_name}, metric_value={metric_value.item()}")
-        send_custom_metric(
-            metric_name=f"partitions.{metric_name}",
-            dimensions=[
-                {'Name': 'table_name', 'Value': f"{table.name()[1]}.{table.name()[2]}"}
-            ],
-            value=metric_value.item(),
-            unit='Count',
-            namespace=cw_namespace,
-            timestamp = snapshot.timestamp_ms,
-        )
+    send_metrics(partition_metrics, "partitions", table, snapshot)
     
     for index, row in df.iterrows():
         partition_name = row['partition']
@@ -158,33 +147,19 @@ def send_snapshot_metrics(table: Table, snapshot: Snapshot):
     logger.info(f"send_snapshot_metrics() -> snapshot_id={snapshot_id}")
     expr = pc.field("snapshot_id") == snapshot_id
     snapshots = table.inspect.snapshots().filter(expr).to_pylist()
-    snapshot_metrics = snapshots[0]
-    snapshot_metrics["summary"] = dict(snapshot_metrics["summary"])
-
-
+    snapshot_metrics_obj = snapshots[0]
+    snapshot_metrics = dict(snapshot_metrics_obj["summary"])
     metrics = [
         "added-data-files", "added-records", "changed-partition-count", 
         "total-records","total-data-files", "total-delete-files",
         "added-files-size", "total-files-size", "added-position-deletes"
     ]
-    for metric in metrics:
-        normalized_metric_name = metric.replace("-", "_")
-        if snapshot_metrics["summary"].get(metric) is None:
-            snapshot_metrics["summary"][metric] = 0
-        metric_value = snapshot_metrics["summary"][metric]
-        logger.info(f"metric_name=snapshot.{normalized_metric_name}, value={metric_value}")
-        send_custom_metric(
-            metric_name=f"snapshot.{normalized_metric_name}",
-            dimensions=[
-                {'Name': 'table_name', 'Value': f"{table.name()[1]}.{table.name()[2]}"}
-            ],
-            value=int(metric_value),
-            unit='Bytes' if "size" in normalized_metric_name else "Count",
-            namespace=cw_namespace,
-            timestamp = snapshot.timestamp_ms,
-        )
+    snapshot_metrics = { k.replace("-", "_"): int(snapshot_metrics.get(k, 0)) for k in metrics }
     
-    return snapshot_metrics 
+    logger.info("snapshot_metrics=")
+    logger.info(snapshot_metrics)
+    send_metrics(snapshot_metrics, "snapshots", table, snapshot)
+     
 
 # check if glue table is of iceberg format, return boolean
 def check_table_is_of_iceberg_format(event):

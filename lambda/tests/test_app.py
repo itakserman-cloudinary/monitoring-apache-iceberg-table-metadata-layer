@@ -1,13 +1,13 @@
 import os
 import shutil
 import unittest
+from numbers import Number
 from unittest.mock import patch
-import boto3
-from moto import mock_aws
 from pyiceberg.schema import Schema
 from pyiceberg.types import LongType, StringType, NestedField
 from pyiceberg.partitioning import PartitionField, PartitionSpec
 from pyiceberg.catalog.sql import SqlCatalog
+import numpy as np
 import pyarrow as pa
 from app import send_files_metrics, send_partition_metrics, send_snapshot_metrics
 
@@ -19,11 +19,8 @@ os.environ['AWS_SESSION_TOKEN'] = 'testing'
 
 class TestIcebergMetrics(unittest.TestCase):
 
-    @mock_aws
     @patch.dict(os.environ, {'CW_NAMESPACE': 'TestNamespace'})
-    @patch('app.send_custom_metric')
-    def setUp(self, mock_send_custom_metric):
-        self.cloudwatch_client = boto3.client('cloudwatch', region_name=os.environ.get('GLUE_REGION'))
+    def setUp(self):
         self.schema = Schema(
             NestedField(1, 'id', LongType(), False),
             NestedField(2, 'data', StringType(), False)
@@ -57,6 +54,7 @@ class TestIcebergMetrics(unittest.TestCase):
         self.table = self.catalog.load_table(('default', 'test_table'))
         self.update_table(0, 5)
 
+    
     def create_arrow_table(self, range_start, range_end):
         data = {
             'id': pa.array(range(range_start, range_end), pa.int64()),
@@ -64,26 +62,31 @@ class TestIcebergMetrics(unittest.TestCase):
         }
         return pa.Table.from_pydict(data)
     
-    @patch('app.send_custom_metric')
-    def test_send_files_metrics(self, mock_send_custom_metric):
-        result = send_files_metrics(self.table, self.snapshot)
-        mock_send_custom_metric.assert_called()
-        self.assertIn('avg_record_count', result)
-        self.assertIn('max_record_count', result)
-        self.assertIn('avg_file_size', result)
-        self.assertIn('max_file_size', result)
+    
+    def assert_metrics(self, expected, table, snapshot, method_to_test):
+        def send_metrics_stub(metrics, namespace, table, snapshot):
+            metrics = {k: v.item() if not isinstance(v, Number) else v for k, v in metrics.items()}
+            self.assertDictEqual(metrics, expected)
+        
+        with patch('app.send_metrics', side_effect=send_metrics_stub):
+            method_to_test(table, snapshot)
+    
+    
+    def test_send_files_metrics(self):
+        expected_file_metrics = {'avg_record_count': np.int64(1), 'max_record_count': np.int64(1), 'min_record_count': np.int64(1), 'avg_file_size': np.int64(1068), 'max_file_size': np.int64(1068), 'min_file_size': np.int64(1068)}
+        self.assert_metrics(expected_file_metrics, self.table, self.snapshot, send_files_metrics)
+    
     
     @patch('app.send_custom_metric')
     def test_send_partition_metrics(self, mock_send_custom_metric):
-        result = send_partition_metrics(self.table, self.snapshot)
-        mock_send_custom_metric.assert_called()
-        self.assertIsNotNone(result)
+        expected_partition_metrics = {'avg_record_count': np.int64(1), 'max_record_count': np.int64(1), 'min_record_count': np.int64(1), 'deviation_record_count': np.float64(0.0), 'skew_record_count': np.float64(0.0), 'avg_file_count': np.int64(1), 'max_file_count': np.int64(1), 'min_file_count': np.int64(1), 'deviation_file_count': np.float64(0.0), 'skew_file_count': np.float64(0.0)}
+        self.assert_metrics(expected_partition_metrics, self.table, self.snapshot, send_partition_metrics)
     
-    @patch('app.send_custom_metric')
-    def test_send_snapshot_metrics(self, mock_send_custom_metric):
-        result = send_snapshot_metrics(self.table, self.snapshot)
-        mock_send_custom_metric.assert_called()
-        self.assertIsNotNone(result)
+    
+    def test_send_snapshot_metrics(self):
+        expected_snapshot_metrics = {'added_data_files': 5, 'added_records': 5, 'changed_partition_count': 5, 'total_records': 5, 'total_data_files': 5, 'total_delete_files': 0, 'added_files_size': 5340, 'total_files_size': 5340, 'added_position_deletes': 0}
+        self.assert_metrics(expected_snapshot_metrics, self.table, self.snapshot, send_snapshot_metrics)
+    
     
     def update_table(self, range_start, range_end):
         # Perform an update operation on the Iceberg table
@@ -92,24 +95,20 @@ class TestIcebergMetrics(unittest.TestCase):
         self.table.refresh()
         self.snapshot = self.table.current_snapshot()
     
+    
     @patch('app.send_custom_metric')
     def test_metrics_after_update(self, mock_send_custom_metric):
         self.update_table(5, 10)
         
-        result_files_metrics = send_files_metrics(self.table, self.snapshot)
-        mock_send_custom_metric.assert_called()
-        self.assertIn('avg_record_count', result_files_metrics)
-        self.assertIn('max_record_count', result_files_metrics)
-        self.assertIn('avg_file_size', result_files_metrics)
-        self.assertIn('max_file_size', result_files_metrics)
+        expected_file_metrics = {'avg_record_count': np.int64(1), 'max_record_count': np.int64(1), 'min_record_count': np.int64(1), 'avg_file_size': np.int64(1068), 'max_file_size': np.int64(1068), 'min_file_size': np.int64(1068)}
+        self.assert_metrics(expected_file_metrics, self.table, self.snapshot, send_files_metrics)
         
-        result_partition_metrics = send_partition_metrics(self.table, self.snapshot)
-        mock_send_custom_metric.assert_called()
-        self.assertIsNotNone(result_partition_metrics)
+        expected_partition_metrics = {'avg_record_count': np.int64(1), 'max_record_count': np.int64(1), 'min_record_count': np.int64(1), 'deviation_record_count': np.float64(0.0), 'skew_record_count': np.float64(0.0), 'avg_file_count': np.int64(1), 'max_file_count': np.int64(1), 'min_file_count': np.int64(1), 'deviation_file_count': np.float64(0.0), 'skew_file_count': np.float64(0.0)}
+        self.assert_metrics(expected_partition_metrics, self.table, self.snapshot, send_partition_metrics)
         
-        result_snapshot_metrics = send_snapshot_metrics(self.table, self.snapshot)
-        mock_send_custom_metric.assert_called()
-        self.assertIsNotNone(result_snapshot_metrics)
+        expected_snapshot_metrics = {'added_data_files': 5, 'added_records': 5, 'changed_partition_count': 5, 'total_records': 10, 'total_data_files': 10, 'total_delete_files': 0, 'added_files_size': 5340, 'total_files_size': 10680, 'added_position_deletes': 0}
+        self.assert_metrics(expected_snapshot_metrics, self.table, self.snapshot, send_snapshot_metrics)
+
 
 if __name__ == '__main__':
     unittest.main()
