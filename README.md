@@ -18,7 +18,6 @@ This repository provides you with a sample solution that collects metrics of exi
 ### Solution Tenets
 * Solution is designed to provide time-series metrics for Apache Iceberg to monitor Apache Iceberg tables over-time to recognize trends and anomalies. 
 * Solution is designed to be lightweight and collect metrics exclusively from Apache Iceberg metadata layer without scanning the data layer hense without the need for heavy compute capacity.
-* In the future we strive to reduce the dependency on AWS Glue in favor of using AWS Lambda compute when required features are available in [PyIceberg](https://py.iceberg.apache.org) library.
 
 ### Technical implementation
 
@@ -234,6 +233,15 @@ sam local invoke IcebergMetricsLambda --env-vars .env.local.json
 
 `.env.local.json` - The JSON file that contains values for the Lambda function's environment variables. Lambda code is dependent on env vars that you are passing in the deploy section. You need to create the file it and include relevant [parameters](#parameters) before you calling `sam local invoke`.
 
+
+### Unit Tests
+
+You can test the metrics generation locally through unit-tests. From lambda folder - 
+
+```bash
+docker build -f tests/Dockerfile -t iceberg-metrics-tests .
+docker run --rm iceberg-metrics-tests
+```
 
 ## Dependencies
 
