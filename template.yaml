@@ -4,12 +4,6 @@ Parameters:
   CWNamespace: 
     Description: Amazon CloudWatch custom metric namespace
     Type: String
-  GlueServiceRole: 
-    Description: AWS Glue Service Role with permissions to create session.
-    Type: String
-  Warehouse: 
-    Description: warehouse is a required catalog property to determine the root path of the data warehouse in storage.
-    Type: String
 Globals:
   Function:
     Timeout: 360
