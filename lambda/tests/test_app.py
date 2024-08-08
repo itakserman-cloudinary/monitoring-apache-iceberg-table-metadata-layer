@@ -65,7 +65,7 @@ class TestIcebergMetrics(unittest.TestCase):
     
     def assert_metrics(self, expected, table, snapshot, method_to_test):
         def send_metrics_stub(metrics, namespace, table, snapshot):
-            metrics = {k: v.item() if not isinstance(v, Number) else v for k, v in metrics.items()}
+            metrics = {k: v.item() if isinstance(v, np.int64) or isinstance(v, np.float64) else v for k, v in metrics.items()}
             self.assertDictEqual(metrics, expected)
         
         with patch('app.send_metrics', side_effect=send_metrics_stub):
@@ -73,13 +73,13 @@ class TestIcebergMetrics(unittest.TestCase):
     
     
     def test_send_files_metrics(self):
-        expected_file_metrics = {'avg_record_count': np.int64(1), 'max_record_count': np.int64(1), 'min_record_count': np.int64(1), 'avg_file_size': np.int64(1068), 'max_file_size': np.int64(1068), 'min_file_size': np.int64(1068)}
+        expected_file_metrics = {'avg_record_count': 1, 'max_record_count': 1, 'min_record_count': 1, 'avg_file_size': 1068, 'max_file_size': 1068, 'min_file_size': 1068}
         self.assert_metrics(expected_file_metrics, self.table, self.snapshot, send_files_metrics)
     
     
     @patch('app.send_custom_metric')
     def test_send_partition_metrics(self, mock_send_custom_metric):
-        expected_partition_metrics = {'avg_record_count': np.int64(1), 'max_record_count': np.int64(1), 'min_record_count': np.int64(1), 'deviation_record_count': np.float64(0.0), 'skew_record_count': np.float64(0.0), 'avg_file_count': np.int64(1), 'max_file_count': np.int64(1), 'min_file_count': np.int64(1), 'deviation_file_count': np.float64(0.0), 'skew_file_count': np.float64(0.0)}
+        expected_partition_metrics = {'avg_record_count': 1, 'max_record_count': 1, 'min_record_count': 1, 'deviation_record_count': 0.0, 'skew_record_count': 0.0, 'avg_file_count': 1, 'max_file_count': 1, 'min_file_count': 1, 'deviation_file_count': 0.0, 'skew_file_count': 0.0}
         self.assert_metrics(expected_partition_metrics, self.table, self.snapshot, send_partition_metrics)
     
     
@@ -100,10 +100,10 @@ class TestIcebergMetrics(unittest.TestCase):
     def test_metrics_after_update(self, mock_send_custom_metric):
         self.update_table(5, 10)
         
-        expected_file_metrics = {'avg_record_count': np.int64(1), 'max_record_count': np.int64(1), 'min_record_count': np.int64(1), 'avg_file_size': np.int64(1068), 'max_file_size': np.int64(1068), 'min_file_size': np.int64(1068)}
+        expected_file_metrics = {'avg_record_count': 1, 'max_record_count': 1, 'min_record_count': 1, 'avg_file_size': 1068, 'max_file_size': 1068, 'min_file_size': 1068}
         self.assert_metrics(expected_file_metrics, self.table, self.snapshot, send_files_metrics)
         
-        expected_partition_metrics = {'avg_record_count': np.int64(1), 'max_record_count': np.int64(1), 'min_record_count': np.int64(1), 'deviation_record_count': np.float64(0.0), 'skew_record_count': np.float64(0.0), 'avg_file_count': np.int64(1), 'max_file_count': np.int64(1), 'min_file_count': np.int64(1), 'deviation_file_count': np.float64(0.0), 'skew_file_count': np.float64(0.0)}
+        expected_partition_metrics = {'avg_record_count': 1, 'max_record_count': 1, 'min_record_count': 1, 'deviation_record_count': 0.0, 'skew_record_count': 0.0, 'avg_file_count': 1, 'max_file_count': 1, 'min_file_count': 1, 'deviation_file_count': 0.0, 'skew_file_count': 0.0}
         self.assert_metrics(expected_partition_metrics, self.table, self.snapshot, send_partition_metrics)
         
         expected_snapshot_metrics = {'added_data_files': 5, 'added_records': 5, 'changed_partition_count': 5, 'total_records': 10, 'total_data_files': 10, 'total_delete_files': 0, 'added_files_size': 5340, 'total_files_size': 10680, 'added_position_deletes': 0}

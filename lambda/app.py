@@ -1,5 +1,5 @@
 import boto3
-from numbers import Number
+import numpy as np
 from datetime import datetime, timezone
 from pyiceberg.catalog.glue import GlueCatalog
 from pyiceberg.table import Table
@@ -52,7 +52,7 @@ def send_custom_metric( metric_name, dimensions, value, unit, namespace, timesta
        
 def send_metrics(metrics: dict, namespace: str, table: Table, snapshot: Snapshot):
     for metric_name, metric_value in metrics.items():
-        if not isinstance(metric_value, Number):
+        if isinstance(metric_value, np.int64) or isinstance(metric_value, np.float64):
             metric_value = metric_value.item()
         logger.info(f"metric_name={namespace}.{metric_name}, metric_value={metric_value}")
         send_custom_metric(
