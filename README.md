@@ -239,6 +239,7 @@ sam local invoke IcebergMetricsLambda --env-vars .env.local.json
 You can test the metrics generation locally through unit-tests. From lambda folder - 
 
 ```bash
+cd lambda
 docker build -f tests/Dockerfile -t iceberg-metrics-tests .
 docker run --rm iceberg-metrics-tests
 ```
