@@ -49,11 +49,15 @@ def send_custom_metric( metric_name, dimensions, value, unit, namespace, timesta
         Namespace=namespace,
         MetricData=[metric_data]
     )
-       
+
+def normalize_metrics(metrics: dict):
+    return {k: v.item() if isinstance(v, np.int64) or isinstance(v, np.float64) 
+            else v 
+            for k, v in metrics.items()}
+
 def send_metrics(metrics: dict, namespace: str, table: Table, snapshot: Snapshot):
-    for metric_name, metric_value in metrics.items():
-        if isinstance(metric_value, np.int64) or isinstance(metric_value, np.float64):
-            metric_value = metric_value.item()
+    normalized_metrics = normalize_metrics(metrics)
+    for metric_name, metric_value in normalized_metrics.items():
         logger.info(f"metric_name={namespace}.{metric_name}, metric_value={metric_value}")
         send_custom_metric(
             metric_name=f"{namespace}.{metric_name}",

@@ -9,7 +9,7 @@ from pyiceberg.partitioning import PartitionField, PartitionSpec
 from pyiceberg.catalog.sql import SqlCatalog
 import numpy as np
 import pyarrow as pa
-from app import send_files_metrics, send_partition_metrics, send_snapshot_metrics
+from app import send_files_metrics, send_partition_metrics, send_snapshot_metrics, normalize_metrics
 
 # Mock AWS credentials
 os.environ['AWS_ACCESS_KEY_ID'] = 'testing'
@@ -65,8 +65,8 @@ class TestIcebergMetrics(unittest.TestCase):
     
     def assert_metrics(self, expected, table, snapshot, method_to_test):
         def send_metrics_stub(metrics, namespace, table, snapshot):
-            metrics = {k: v.item() if isinstance(v, np.int64) or isinstance(v, np.float64) else v for k, v in metrics.items()}
-            self.assertDictEqual(metrics, expected)
+            normalized_metrics = normalize_metrics(metrics)
+            self.assertDictEqual(normalized_metrics, expected)
         
         with patch('app.send_metrics', side_effect=send_metrics_stub):
             method_to_test(table, snapshot)
