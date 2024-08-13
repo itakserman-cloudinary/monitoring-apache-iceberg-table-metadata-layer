@@ -113,7 +113,7 @@ def send_partition_metrics(table: Table, snapshot: Snapshot):
     send_metrics(partition_metrics, "partitions", table, snapshot)
     
     for index, row in df.iterrows():
-        partition_name = row['partition']
+        partition_name = "_".join(f"{val}" for val in row['partition'].values())
         record_count = row['record_count']
         file_count = row['file_count']
         logger.info(f"partition_name={partition_name}, record_count={record_count}, file_count={file_count}")
