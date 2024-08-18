@@ -89,7 +89,7 @@ https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/i
 
 ### Build and Deploy
 
-> ! Important - The guidance below uses AWS Serverless Application Model (SAM) for easier packaging and deployment of AWS Lambda. However if you use your own packaging tool or if you want to deploy AWS Lambda manually you can explore following files:
+> ! Important - The guidance below uses AWS Serverless Application Model (SAM) and Amazon ECR for easier packaging and deployment of AWS Lambda. However if you use your own packaging tool or if you want to deploy AWS Lambda manually you can explore following files:
 > - template.yaml
 > - lambda/requirements.txt
 > - lambda/app.py
@@ -99,22 +99,26 @@ https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/i
 Once you've installed [Docker](#install-docker) and [SAM CLI](#install-sam-cli) you are ready to build the AWS Lambda. Open your terminal and run command below.
 
 ```bash
+cd  lambda
+docker build -f Dockerfile --platform linux/amd64 -t iceberg-monitoring:main --build-arg CLOUDWATCH_NAMESPACE={{ cw_namespace }} .
 sam build --use-container
 ```
 
-#### 2. Deploy AWS Lambda using AWS SAM CLI
+#### 2. Deploy AWS Lambda using AWS SAM CLI and Amazon ECR
 
-Once build is finished you can deploy your AWS Lambda. SAM will upload packaged code and deploy AWS Lambda resource using AWS CloudFormation. Run below command using your terminal.
+Once build is finished you can deploy your AWS Lambda. ECR will upload packaged code and SAM will deploy AWS Lambda resource using AWS CloudFormation. Run below command using your terminal.
 
 ```bash
+aws ecr get-login-password --region {{ aws_region }} | docker login --username AWS --password-stdin {{ aws_account_id }}.dkr.ecr.us-east-1.amazonaws.com
+aws ecr create-repository --repository-name iceberg-monitoring --region {{ aws_region }} --image-scanning-configuration scanOnPush=true --image-tag-mutability MUTABLE
+docker tag iceberg-monitoring:main {{ ecr_repository_uri }}:latest
+docker push {{ aws_account_id }}.dkr.ecr.{{ aws_region }}.amazonaws.com/iceberg-monitoring:latest
 sam deploy --guided
 ```
 
 ##### Parameters
 
-- `CWNamespace` - A namespace is a container for CloudWatch metrics.
-- `GlueServiceRole` - AWS Glue Role arn you created [earlier](#configuring-iam-permissions-for-aws-glue).
-- `Warehouse` - Required catalog property to determine the root path of the data warehouse on S3. This can be any path on your S3 bucket. Not critical for the solution.
+- `CW_NAMESPACE` - A namespace is a container for CloudWatch metrics.
 
 
 #### 3. Configure EventBridge Trigger
