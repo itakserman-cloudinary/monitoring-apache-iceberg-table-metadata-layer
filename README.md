@@ -113,12 +113,17 @@ aws ecr get-login-password --region {{ aws_region }} | docker login --username A
 aws ecr create-repository --repository-name iceberg-monitoring --region {{ aws_region }} --image-scanning-configuration scanOnPush=true --image-tag-mutability MUTABLE
 docker tag iceberg-monitoring:main {{ ecr_repository_uri }}:latest
 docker push {{ aws_account_id }}.dkr.ecr.{{ aws_region }}.amazonaws.com/iceberg-monitoring:latest
-sam deploy --guided
+sam deploy --debug --region {{ aws_region }} \
+        --parameter-overrides ImageURL={{ aws_account_id }}.dkr.ecr.{{ aws_region }}.amazonaws.com/iceberg-monitoring:latest \
+        --image-repository {{ aws_account_id }}.dkr.ecr.{{ aws_region }}.amazonaws.com/iceberg-monitoring \
+        --stack-name iceberg-monitoring --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND \
+        --s3-bucket {{ s3_bucket }} --s3-prefix iceberg-monitoring
 ```
 
 ##### Parameters
 
 - `CW_NAMESPACE` - A namespace is a container for CloudWatch metrics.
+- `ImageURL` - The 
 
 
 #### 3. Configure EventBridge Trigger
