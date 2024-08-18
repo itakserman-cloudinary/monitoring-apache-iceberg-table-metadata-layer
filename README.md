@@ -123,7 +123,6 @@ sam deploy --debug --region {{ aws_region }} \
 ##### Parameters
 
 - `CW_NAMESPACE` - A namespace is a container for CloudWatch metrics.
-- `ImageURL` - The 
 
 
 #### 3. Configure EventBridge Trigger
