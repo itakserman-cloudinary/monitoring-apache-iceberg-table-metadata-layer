@@ -17,7 +17,6 @@ Resources:
         - CloudWatchPutMetricPolicy: {}
         - AWSLambdaBasicExecutionRole
         - AmazonS3ReadOnlyAccess
-        - ECR-Pull-Read-Only
         - AmazonEC2ContainerRegistryReadOnly
         - Statement:
           - Sid: GlueDataCatalogPolicy

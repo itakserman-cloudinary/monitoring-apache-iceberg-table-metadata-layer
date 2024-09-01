@@ -93,39 +93,39 @@ https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/i
 > - template.yaml
 > - lambda/requirements.txt
 > - lambda/app.py
+> Once you've installed [Docker](#install-docker) and [SAM CLI](#install-sam-cli) you are ready to build the AWS Lambda. Open your terminal and run command below.
 
-#### 1. Build AWS Lambda using AWS SAM CLI
-
-Once you've installed [Docker](#install-docker) and [SAM CLI](#install-sam-cli) you are ready to build the AWS Lambda. Open your terminal and run command below.
+#### 1. Build and Deploy Script
 
 ```bash
-cd  lambda
-docker build -f Dockerfile --platform linux/amd64 -t iceberg-monitoring:main --build-arg CLOUDWATCH_NAMESPACE={{ cw_namespace }} .
+export CLOUDWATCH_NAMESPACE={{ cw_namespace }}
+export AWS_REGION={{ aws_region }}
+export aws_account_id={{ aws_account_id }}
+export ecr_repository_name={{ repository_name }}
+export STACK_NAME={{ your_stack_name }}
+export S3_ARTIFACTS_BUCKET_NAME={{ s3_bucket_name }}
+export S3_ARTIFACTS_PATH={{ s3_bucket_path }}
+export ecr_repository_uri=${aws_account_id}.dkr.ecr.$AWS_REGION.amazonaws.com/${ecr_repository_name}
+
+docker build -f Dockerfile --platform linux/amd64 -t ${ecr_repository_name}:main --build-arg CLOUDWATCH_NAMESPACE=$CLOUDWATCH_NAMESPACE .
 sam build --use-container
-```
+aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin ${aws_account_id}.dkr.ecr.us-east-1.amazonaws.com
+aws ecr create-repository --repository-name $ecr_repository_name --region $AWS_REGION --image-scanning-configuration scanOnPush=true --image-tag-mutability MUTABLE
+docker tag ${ecr_repository_name}:main ${ecr_repository_uri}:latest
+docker push ${ecr_repository_uri}:latest
 
-#### 2. Deploy AWS Lambda using AWS SAM CLI and Amazon ECR
-
-Once build is finished you can deploy your AWS Lambda. ECR will upload packaged code and SAM will deploy AWS Lambda resource using AWS CloudFormation. Run below command using your terminal.
-
-```bash
-aws ecr get-login-password --region {{ aws_region }} | docker login --username AWS --password-stdin {{ aws_account_id }}.dkr.ecr.us-east-1.amazonaws.com
-aws ecr create-repository --repository-name iceberg-monitoring --region {{ aws_region }} --image-scanning-configuration scanOnPush=true --image-tag-mutability MUTABLE
-docker tag iceberg-monitoring:main {{ ecr_repository_uri }}:latest
-docker push {{ aws_account_id }}.dkr.ecr.{{ aws_region }}.amazonaws.com/iceberg-monitoring:latest
-sam deploy --debug --region {{ aws_region }} \
-        --parameter-overrides ImageURL={{ aws_account_id }}.dkr.ecr.{{ aws_region }}.amazonaws.com/iceberg-monitoring:latest \
-        --image-repository {{ aws_account_id }}.dkr.ecr.{{ aws_region }}.amazonaws.com/iceberg-monitoring \
-        --stack-name iceberg-monitoring --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND \
-        --s3-bucket {{ s3_bucket }} --s3-prefix iceberg-monitoring
+sam deploy --guided --debug --region $AWS_REGION \
+        --parameter-overrides ImageURL=${ecr_repository_uri}:latest \
+        --image-repository $ecr_repository_uri \
+        --stack-name $STACK_NAME --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND \
+        --s3-bucket $S3_ARTIFACTS_BUCKET_NAME --s3-prefix $S3_ARTIFACTS_PATH
 ```
 
 ##### Parameters
 
 - `CLOUDWATCH_NAMESPACE` - A namespace is a container for CloudWatch metrics.
 
-
-#### 3. Configure EventBridge Trigger
+#### 2. Configure EventBridge Trigger
 
 In this section you will configure EventBridge Rule that will trigger Lambda function on every transaction commit to Apache Iceberg table.
 Default rule listens to `Glue Data Catalog Table State Change` event from all the tables in Glue Data Catalog catalog. Lambda code knows to skip non-iceberg tables.
@@ -175,7 +175,7 @@ events_client.put_targets(
 print(f"Pattern updated = {event_pattern_dump}")
 ```
 
-#### 4. (Optional) Create CloudWatch Dashboard
+#### 3. (Optional) Create CloudWatch Dashboard
 Once your Iceberg Table metrics are submitted to CloudWatch you can start using them to monitor and create alarms. CloudWatch also let you visualize metrics using CloudWatch Dashboards.
 
 `assets/cloudwatch-dashboard.template.json` is a sample CloudWatch dashboard configuration that uses fraction of the submitted metrics and combines it with AWS Glue native metrics for Apache Iceberg. 

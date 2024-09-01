@@ -194,8 +194,6 @@ def lambda_handler(event, context):
     catalog = GlueCatalog(glue_db_name)
     table = catalog.load_table((glue_db_name, glue_table_name))
     snapshot = table.current_snapshot()
-    logger.info(f"current snapshot id={snapshot.snapshot_id}")
-    logger.info("Using glue IS to produce metrics")
     
     send_snapshot_metrics(table, snapshot)
     send_partition_metrics(table, snapshot)
