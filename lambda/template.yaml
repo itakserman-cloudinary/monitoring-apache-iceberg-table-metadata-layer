@@ -32,6 +32,14 @@ Resources:
             - glue:GetPartitions
             - glue:ListSessions
             Resource: '*'
+        - Statement:
+          - Sid: ECRReadOnlyAdditionsPolicy
+            Effect: Allow
+            Action:
+            - ecr:DescribeRegistry
+            - ecr:InitiateLayerUpload
+            - ecr:SetRepositoryPolicy
+            Resource: '*'
       Architectures:
         - x86_64
   PermissionForEventBridgeToInvokeLambda:
